@@ -129,7 +129,7 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
     }
     else if (strncmp(cmd, "prtread ", 8) == 0) {
         char *arg = cmd + 8;      // берем оригинальный ввод для аргумента
-        while (*arg == ' ') arg++;  // пропускаем пробелы
+        while (*arg == ' ') arg++; 
 
         if (*arg == '\0') {
             printf("Error: Specify filename!\n");
@@ -159,7 +159,7 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
         flags->noFlag = false;
         printf("Flags enabled\n");
     }
-    //
+
     else if (strncmp(cmd, "prt ", 4) == 0) {
         char *arg = CmdSource + 4;
         while (*arg == ' ') arg++;
@@ -286,7 +286,19 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
 int main() {
     char input[256];
     PSH_GlobalFlags flags = {0}; // сохраняем между командами
+    #ifdef OS_WINDOWS
+            // Устанавливаем кодировку ввода и вывода в UTF-8 (65001)
+            SetConsoleCP(CP_UTF8);
+            SetConsoleOutputCP(CP_UTF8);
+            
+            // Включаем поддержку ANSI-последовательностей (для цвета текста)
+            HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+            DWORD dwMode = 0;
+            GetConsoleMode(hOut, &dwMode);
+            SetConsoleMode(hOut, dwMode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+    #endif
 
+        setlocale(LC_ALL, "ru_RU.UTF-8");
     
     while (1) {
         printf("> ");
