@@ -1,0 +1,23 @@
+$help #Help command list
+[Commands]
+ver    - Print Shell version
+hello  - Print "Hello world!"
+quit , q , exit - Exit from Shell
+del <File Path or Name> - Delete file
+delay <ms> - Wait some time 
+prt <word> - Print string
+prtread <filename or path> - Print file content
+noflag - Disable flags
+exflag - Enable flags
+run <command> - Send command to Windows
+cmd    - Open Windows Command Prompt
+clv    - Clear view
+cls    - Clear Screen
+set-lng <language file name> - Sets language file to file in program folder
+
+
+[Parameters]
+{q     - Quit from shell after finishing program
+{s     - Shut Down after finishing program
+{d     - Show executing string
+$
