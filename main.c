@@ -6,6 +6,8 @@
 #include <errno.h> //Error number print 
 #include <locale.h> //CMD set system language
 #include "modules/fum.h" //File Utils Module import 
+#include "modules/EXTbasiclib.h"
+
 
 char langFile[10] = "en-en.lng";
 #ifdef _WIN32 //made for source code compilation on other systems
@@ -13,6 +15,7 @@ char langFile[10] = "en-en.lng";
     #include <windows.h>
 #elif __linux__
     #define OS_LINUX
+    #include <unistd.h>
     #include <time.h>
 #elif __APPLE__
     #define OS_MAC
@@ -95,8 +98,12 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
         
         printf("Hello World!\n");
     }
-    if (strcmp(cmd, "cls") == 0) {
-        system("cls");
+    else if (strcmp(cmd, "cls") == 0) {
+        #ifdef OS_LINUX
+            system("clear");
+        #else
+            system("cls");
+        #endif
     }
     else if (strcmp(cmd, "ver") == 0) {
         printf("ProggShell v0.0.7NU\n");
@@ -108,6 +115,31 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
     }
     else if (strcmp(cmd, "q") == 0 || strcmp(cmd, "quit") == 0 || strcmp(cmd, "exit") == 0 ) {
         return false;
+    }
+    else if (strncmp(cmd, "create", 6) == 0) {
+        char *arg = cmd + 6;
+        
+        while (*arg == ' ') arg++;
+        
+        if (*arg == '\0'){
+            printf("Usage: create <object_name>\n");
+        }
+        
+        else {
+            if (strcmp(arg,"progressbar")== 0){
+                for (int i = 0; i < 101; i++)
+                {
+                    if (i == 100){
+                        create_pb("Test", 1,i,10,"|","·","|",2);
+                        break;
+                    }
+                    create_pb("Test", 1,i,10,"|","·","|",1);
+                    usleep(100000);
+                }
+                
+            }
+        }
+        
     }
     else if (strncmp(cmd, "del ", 4) == 0) {
         char *arg = CmdSource + 4;      // берем оригинальный ввод для аргумента
@@ -190,8 +222,12 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
         
     }
     else if (strcmp(cmd, "cmd") == 0) {
-
-        int Status = system("cmd");
+        int Status;
+        #ifdef OS_LINUX
+            Status = system("bash");
+        #else
+            Status = system("cmd");
+        #endif //MacOS?
         if (Status != 0) {
             printf("Error! Error code: %d\n", Status );
         }
