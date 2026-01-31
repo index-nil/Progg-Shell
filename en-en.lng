@@ -13,6 +13,7 @@ run <command> - Send command to Windows
 cmd    - Open Windows Command Prompt
 clv    - Clear view
 cls    - Clear Screen
+create <object name> - Create object (progressbar)
 set-lng <language file name> - Sets language file to file in program folder
 
 

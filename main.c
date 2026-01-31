@@ -129,11 +129,12 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
             if (strcmp(arg,"progressbar")== 0){
                 for (int i = 0; i < 101; i++)
                 {
+                    
                     if (i == 100){
-                        create_pb("Test", 1,i,10,"|","·","|",2);
+                        create_pb("Test", 1,i,10,"|","·","|",2,95);
                         break;
                     }
-                    create_pb("Test", 1,i,10,"|","·","|",1);
+                    create_pb("Test", 1,i,10,"|","·","|",1,95);
                     usleep(100000);
                 }
                 
