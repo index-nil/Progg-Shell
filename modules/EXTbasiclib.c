@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-int create_pb(char* Text ,int ShowPercent, int value,int chars, char* FullChar, char* VoidChar, char* Borders, int overwrite){
+int create_pb(char* Text ,int ShowPercent, int value,int chars, char* FullChar, char* VoidChar, char* Borders, int overwrite, int Color){
     //Create Progress bar
     
     if (!chars || !value ||!overwrite){
@@ -22,6 +22,7 @@ int create_pb(char* Text ,int ShowPercent, int value,int chars, char* FullChar, 
     }
     
     printf("%s", Borders);
+    printf("\033[%dm",Color);
     for (int i = 0; i < chars; i++)
     {
         if (Steps > 0){
@@ -44,14 +45,15 @@ int create_pb(char* Text ,int ShowPercent, int value,int chars, char* FullChar, 
 
         
     }
+    printf("\033[0m");
     printf("%s  ", Borders);
     if (ShowPercent == 1)
     {
         if (value <= 0){
-            printf("   0%%");
+            printf("   0/100%%");
         }
         else{
-            printf("   %d", value);
+            printf("   %d/100%%", value);
         }
     }
     else if (ShowPercent == 2)
