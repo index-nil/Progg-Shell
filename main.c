@@ -6,35 +6,48 @@
 #include <errno.h> //Error number print 
 #include <locale.h> //CMD set system language
 #include "modules/fum.h" //File Utils Module import 
-#include "modules/EXTbasiclib.h"
+#include "modules/EXTbasiclib.h" //Progress bar, radio button and other
+#include "modules/LngModule.h" //Localization
+// #include "modules/cJSON.h" //JSON read
+#include "modules/Sys_load.h"
+#include <signal.h>
 
 
-char langFile[10] = "en-en.lng";
-#ifdef _WIN32 //made for source code compilation on other systems
-    #define OS_WINDOWS
+
+
+#ifdef _WIN32
     #include <windows.h>
-#elif __linux__
-    #define OS_LINUX
+    #define SLEEP_MS(x) Sleep(x)
+#else
     #include <unistd.h>
-    #include <time.h>
+    #define SLEEP_MS(x) usleep((x)*1000)
+#endif
+
+#ifdef _WIN32 //made for source code compilation on other systems
+#define OS_WINDOWS
+#include <windows.h>
+#elif __linux__
+#define OS_LINUX
+#include <unistd.h>
+#include <time.h>
 #elif __APPLE__
-    #define OS_MAC
+#define OS_MAC
 #endif
 
 void shutdownComputer() {
     printf("Shutting down computer...");
-#ifdef OS_WINDOWS
+    #ifdef OS_WINDOWS
     system("shutdown /s /t 0");      
     // system("shutdown /r /t 0");   
-#elif defined(OS_LINUX)
+    #elif defined(OS_LINUX)
     system("shutdown -h now");       
     // system("reboot");             
-#elif defined(OS_MAC)
+    #elif defined(OS_MAC)
     system("shutdown -h now");       
     // system("sudo reboot");
-#else
+    #else
     printf("Unknow System!\n");
-#endif
+    #endif
     exit(0);
 }
 void strToLower(char *str) {
@@ -44,12 +57,57 @@ void strToLower(char *str) {
 }
 
 
+/*--------------Variable create---------------*/
+
 typedef struct {
     bool noFlag; //{n
     bool exitAfter;   // {q
     bool shutDownAfter; //{s
     bool debugMode;   // {d
 } PSH_GlobalFlags;
+
+CpuMonitor monitor;
+float cores_load[MAX_CORES];
+char langFile[10] = "en-en.lng";
+volatile sig_atomic_t Exit = false;
+
+#ifdef _WIN32
+    bool WindowsWindowCreator = false;
+#endif
+int exec(char* arg, PSH_GlobalFlags* flags);
+bool handleCommand(char *cmd, PSH_GlobalFlags *flags);
+/*--------------------------------------------*/
+
+void Stop(int sig){
+    (void)sig;
+    Exit = !Exit;
+}
+
+
+
+int exec(char* arg,PSH_GlobalFlags* flags){
+            
+        FILE *fp = fopen(arg, "r");
+        if (!fp) {
+            printf("Failed to open File!\n");
+            return -1;
+        }
+        char buffer[2048];
+        while (fgets(buffer, sizeof(buffer), fp)) {
+            
+            char *token = strtok(buffer, "\n\r");
+            while (token != NULL) {
+                // Очистка от ведущих пробелов
+                while (*token == ' ') token++;
+                
+                if (strlen(token) > 0) {
+                        (bool)handleCommand(token, flags);
+            }
+                token = strtok(NULL, ";\n\r");
+           }
+        }
+        fclose(fp);
+}
 
 
 void parseGlobalFlags(char *cmd, PSH_GlobalFlags *flags) {
@@ -83,7 +141,7 @@ void parseGlobalFlags(char *cmd, PSH_GlobalFlags *flags) {
     cmd[strcspn(cmd, "\n")] = '\0';
     while (strlen(cmd) > 0 && cmd[strlen(cmd)-1] == ' ')
         cmd[strlen(cmd)-1] = '\0';
-}
+    }
 
 bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
     char CmdSource[512];
@@ -94,10 +152,26 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
     while (strlen(cmd) > 0 && cmd[strlen(cmd)-1] == ' ')
         cmd[strlen(cmd)-1] = '\0';
 
-    if (strcmp(cmd, "hello") == 0) {
+    if (strcmp(cmd, "windows-window-creator") == 0) {
         
+        #ifndef _WIN32
+            printf("This Module cant run on your OS! (Only Windows)\n");
+            return true;
+        #else
+
+            if (WindowsWindowCreator == false){
+                WindowsWindowCreator = true;
+
+            }
+            else{WindowsWindowCreator = false;}
+            printf("Done\n");
+            return true;
+        #endif
+    }
+    if (strcmp(cmd, "hello") == 0) {
         printf("Hello World!\n");
     }
+
     else if (strcmp(cmd, "cls") == 0) {
         #ifdef OS_LINUX
             system("clear");
@@ -105,6 +179,55 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
             system("cls");
         #endif
     }
+    else if (strcmp(cmd, "cpu-load") == 0) {
+        printf("\033[?1049h");
+        
+        signal(SIGINT, Stop);
+        cpu_monitor_init(&monitor);
+        while (Exit != true) 
+        {
+            
+            SLEEP_MS(1000);
+            int count = cpu_monitor_update(&monitor, cores_load);
+            printf("\033[K");
+            printf("\033[H");
+            
+            printf("(^C To Exit)\n");
+            printf("[CPU Load]:\n\n");
+
+            for (int i = 0; i < count; i++) {
+                char core_label[32];
+                    sprintf(core_label, "[Core %2d]", i); // %2d выровняет Core 9 и Core 10
+
+                    // Чтобы 0% не вызывало ошибку в вашей функции, передаем минимум 1 или правим функцию
+                    int val = (int)cores_load[i];
+                    if (val > 100) val = 100;
+
+                    // overwrite ставим 2: это сделает \r в начале и \n в конце
+                    // Color: 32 - зеленый, 33 - желтый, 31 - красный
+                    int color = 32; 
+                    if (val > 50) color = 33;
+                    if (val > 80) color = 31;
+
+                    create_pb(
+                        core_label, // Текст "[Core 0]"
+                        1,          // ShowPercent (1 = показать % в конце)
+                        val,        // Значение нагрузки
+                        20,         // Длина полоски (chars)
+                        "#",        // Full char
+                        "-",        // Void
+                        "|",        // Bordes
+                        0,          // overwrite=0
+                        color       // Цвет (ANSI код)
+                    );
+                    
+            }
+        }
+        fflush(stdout);
+        Exit = false;
+        printf("\033[?1049l");
+    }
+    
     else if (strcmp(cmd, "ver") == 0) {
         printf("ProggShell v0.0.7NU\n");
     }
@@ -135,7 +258,11 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
                         break;
                     }
                     create_pb("Test", 1,i,10,"|","·","|",1,95);
-                    usleep(100000);
+                    #ifdef _WIN32
+                        Sleep(100);
+                    #else
+                        usleep(100000);
+                    #endif
                 }
                 
             }
@@ -163,25 +290,33 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
     else if (strncmp(cmd, "prtread ", 8) == 0) {
         char *arg = cmd + 8;      // берем оригинальный ввод для аргумента
         while (*arg == ' ') arg++; 
-
+        char * Localization;
         if (*arg == '\0') {
-            printf("Error: Specify filename!\n");
+            Localization = getSection("read:fileNameError",langFile);
+            if(!Localization || Localization == NULL){return true;}
+            printf("%s\n",Localization);
         } else {
             long filesize = 0;
             char *content = read_file_to_buffer(arg, &filesize);
-
+            
             if (content){
                 printf("%s\n\n\n", content);
                 int words = count_words(content, filesize);
-                int symbols = count_symbols(content,filesize, false);
-                printf("|PSh| Detected words in text: %d | Symbols in text %d | Read time for you: ~Null |", words,symbols);
+                int symbols = count_symbols(content,filesize, true);
+                Localization = getSection("read:info",langFile);
+                if(!Localization || Localization == NULL){return true;}
+                printf(Localization, words,symbols);
                 free(content);
             }
             else{
-                printf("Can't open file!\n");
+                Localization = getSection("general:cantOpenFile",langFile);
+                if(!Localization || Localization == NULL){return true;}
+                printf("%s\n",Localization);
             }
+            
           
         }
+        free(Localization);
     }
     // No-Exist flag system
     else if (strcmp(cmd, "noflag") == 0) {
@@ -219,6 +354,18 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
             else {
                 printf("Error executing command '%s' Error code: %d\n" , arg , Status );
             }
+        }
+        
+    }
+    else if (strncmp(cmd, "exec", 4) == 0) {
+        char *arg = CmdSource + 4;
+        while (*arg == ' ') arg++;
+        if (*arg == '\0'){
+            printf("Usage <path_to_file>\n");
+        }
+        
+        else {
+            exec(arg,flags);
         }
         
     }
@@ -281,27 +428,14 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
     }
 
     else if (strcmp(cmd, "help") == 0) {
-        FILE *file = fopen(langFile, "r");
-        if (!file) {
-            perror("Failed to open language file !");
-            printf("\nEnter 'set-lng (language file name).lng' to change language. (Language file need's to be in program folder!)");
-            return !flags->exitAfter;
+        char* Temp = getSection("help", langFile);
+        if (Temp == NULL || !Temp){
+            printf("The partition is free or does not exist | ERROR 100\n");
         }
-
-        char line[256];
-        while (fgets(line, sizeof(line), file)) {
-            if (strncmp(line, "$help", 5) == 0) {       //Lng help section finder
-                continue;
-            }
-            else if (line[0] == '$'){
-                break;
-            }
-            line[strcspn(line, "\n")] = 0;
-            
-            if (line[0] == '#') continue;
-            printf("%s\n", line);
+        else{
+            printf("%s",Temp);
+            free(Temp);
         }
-        fclose(file);
     }
     else if (strlen(cmd) > 0) {
         printf("Unknow command: %s\n", CmdSource);
@@ -320,23 +454,42 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
 }
 
 
-int main() {
+
+int main(int argc, char *argv[]) {
     char input[256];
     PSH_GlobalFlags flags = {0}; // сохраняем между командами
     #ifdef OS_WINDOWS
-            // Устанавливаем кодировку ввода и вывода в UTF-8 (65001)
-            SetConsoleCP(CP_UTF8);
-            SetConsoleOutputCP(CP_UTF8);
-            
-            // Включаем поддержку ANSI-последовательностей (для цвета текста)
-            HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-            DWORD dwMode = 0;
-            GetConsoleMode(hOut, &dwMode);
-            SetConsoleMode(hOut, dwMode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
-    #endif
-
-        setlocale(LC_ALL, "ru_RU.UTF-8");
+    // Устанавливаем кодировку ввода и вывода в UTF-8 (65001)
+    SetConsoleCP(CP_UTF8);
+    SetConsoleOutputCP(CP_UTF8);
     
+    // Включаем поддержку ANSI-последовательностей (для цвета текста)
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD dwMode = 0;
+    GetConsoleMode(hOut, &dwMode);
+    SetConsoleMode(hOut, dwMode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+    #endif
+    
+    setlocale(LC_ALL, "ru_RU.UTF-8");
+    
+    if (argc > 1) {
+        printf("Loading: %s\n", argv[1]);
+        int Sccode = 0;
+        // Здесь вы можете открыть файл для чтения
+        FILE *file = fopen(argv[1], "r");
+        if (file) {
+            printf("Loaded file!\n");
+            exec(argv[1],&flags);
+            fclose(file);
+            Sccode = 0;
+        } else {
+            Sccode = 1;
+            perror("Error: Cant open file!");
+        }   
+    
+        printf("Script Ended with code %d", Sccode);
+        return(Sccode);
+    }
     while (1) {
         printf("> ");
         fgets(input, sizeof(input), stdin);
@@ -344,15 +497,15 @@ int main() {
         
         
         flags = (PSH_GlobalFlags){ .noFlag = flags.noFlag };
-
+        
         
         
         parseGlobalFlags(input, &flags);
-
+        
         if (!handleCommand(input, &flags)) {
             break;
         }
     }
-
+    
     return 0;
 }

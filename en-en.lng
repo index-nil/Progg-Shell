@@ -1,19 +1,21 @@
-$help #Help command list
+$help
 [Commands]
 ver    - Print Shell version
 hello  - Print "Hello world!"
 quit , q , exit - Exit from Shell
-del <File Path or Name> - Delete file
+del <Path + Full File name> - Delete file
 delay <ms> - Wait some time 
 prt <word> - Print string
-prtread <filename or path> - Print file content
+prtread <Path + Full File name> - Print file content
 noflag - Disable flags
 exflag - Enable flags
 run <command> - Send command to Windows
 cmd    - Open Windows Command Prompt
 clv    - Clear view
 cls    - Clear Screen
-create <object name> - Create object (progressbar)
+create <object_name> - create object (For extensions developers)
+cpu-load - Show CPU load
+exec <Path + Full File name> - Execute file
 set-lng <language file name> - Sets language file to file in program folder
 
 
@@ -21,4 +23,16 @@ set-lng <language file name> - Sets language file to file in program folder
 {q     - Quit from shell after finishing program
 {s     - Shut Down after finishing program
 {d     - Show executing string
+$
+
+$read:fileNameError
+Error: Specify filename!
+$
+
+$read:info
+|PSh| Detected words in text: %d | Symbols in text %d | Read time for you: ~Null |\n
+$
+
+$general:cantOpenFile
+Can't open file!
 $

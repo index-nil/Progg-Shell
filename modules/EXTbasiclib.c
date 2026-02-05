@@ -5,7 +5,7 @@
 int create_pb(char* Text ,int ShowPercent, int value,int chars, char* FullChar, char* VoidChar, char* Borders, int overwrite, int Color){
     //Create Progress bar
     
-    if (!chars || !value ||!overwrite){
+    if (!chars){
         return -1;
     }
     if (overwrite == 1 || overwrite == 2)
