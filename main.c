@@ -6,18 +6,20 @@
 #include <errno.h> //Error number print 
 #include <locale.h> //CMD set system language
 #include "modules/fum.h" //File Utils Module import 
-#include "modules/EXTbasiclib.h" //Progress bar, radio button and other
+#include "modules/UIlib.h" //Progress bar, radio button and other
 #include "modules/LngModule.h" //Localization
 // #include "modules/cJSON.h" //JSON read
 #include "modules/Sys_load.h"
+// #include "modules/mongoose.h"
 #include <signal.h>
 
 
 
 
 #ifdef _WIN32
-    #include <windows.h>
+    #define WIN32_LEAN_AND_MEAN
     #define SLEEP_MS(x) Sleep(x)
+    
 #else
     #include <unistd.h>
     #define SLEEP_MS(x) usleep((x)*1000)
@@ -25,7 +27,7 @@
 
 #ifdef _WIN32 //made for source code compilation on other systems
 #define OS_WINDOWS
-#include <windows.h>
+
 #elif __linux__
 #define OS_LINUX
 #include <unistd.h>
@@ -71,19 +73,52 @@ float cores_load[MAX_CORES];
 char langFile[10] = "en-en.lng";
 volatile sig_atomic_t Exit = false;
 
-#ifdef _WIN32
-    bool WindowsWindowCreator = false;
-#endif
+// #ifdef _WIN32
+//     bool WindowsWindowCreator = false;
+// #endif
 int exec(char* arg, PSH_GlobalFlags* flags);
 bool handleCommand(char *cmd, PSH_GlobalFlags *flags);
 /*--------------------------------------------*/
+
+char* getDynamicInput() {
+    size_t size = 16; // Начальный размер буфера
+    size_t len = 0;
+    char *buffer = malloc(size);
+    if (!buffer) return NULL;
+
+    int ch;
+    while ((ch = getchar()) != '\n' && ch != EOF) {
+        buffer[len++] = ch;
+        
+        // Если место закончилось, увеличиваем буфер в 2 раза
+        if (len + 1 >= size) {
+            size += 16;
+            char *new_buffer = realloc(buffer, size);
+            if (!new_buffer) {
+                free(buffer);
+                return NULL;
+            }
+            buffer = new_buffer;
+        }
+    }
+    buffer[len] = '\0'; // Завершающий ноль
+    return buffer;
+}
+
 
 void Stop(int sig){
     (void)sig;
     Exit = !Exit;
 }
 
-
+bool is_empty(const char *s) {
+    while (*s) {
+        if (!isspace((unsigned char)*s)) return false;
+        s++;
+    }
+    return true;
+    
+}
 
 int exec(char* arg,PSH_GlobalFlags* flags){
             
@@ -100,13 +135,14 @@ int exec(char* arg,PSH_GlobalFlags* flags){
                 // Очистка от ведущих пробелов
                 while (*token == ' ') token++;
                 
-                if (strlen(token) > 0) {
-                        (bool)handleCommand(token, flags);
+                if (!handleCommand(token, flags)) { fclose(fp); return 0;}
+                token = strtok(NULL, "\n\r");
             }
-                token = strtok(NULL, ";\n\r");
-           }
+        
         }
+        
         fclose(fp);
+        return 0;
 }
 
 
@@ -144,34 +180,37 @@ void parseGlobalFlags(char *cmd, PSH_GlobalFlags *flags) {
     }
 
 bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
-    char CmdSource[512];
-    strcpy(CmdSource , cmd );
+    if (is_empty(cmd)) return true;
+    char *CmdSource = strdup(cmd);
+    if (!CmdSource) return true;
     strToLower(cmd);
 
     cmd[strcspn(cmd, "\n")] = '\0';
     while (strlen(cmd) > 0 && cmd[strlen(cmd)-1] == ' ')
         cmd[strlen(cmd)-1] = '\0';
 
-    if (strcmp(cmd, "windows-window-creator") == 0) {
+    // if (strcmp(cmd, "windows-window-creator") == 0) {
         
-        #ifndef _WIN32
-            printf("This Module cant run on your OS! (Only Windows)\n");
-            return true;
-        #else
+    //     #ifndef _WIN32
+    //         printf("This Module cant run on your OS! (Only Windows)\n");
+    //         
+    //     #else
 
-            if (WindowsWindowCreator == false){
-                WindowsWindowCreator = true;
+    //         if (WindowsWindowCreator == false){
+    //             WindowsWindowCreator = true;
 
-            }
-            else{WindowsWindowCreator = false;}
-            printf("Done\n");
-            return true;
-        #endif
-    }
-    if (strcmp(cmd, "hello") == 0) {
+    //         }
+    //         else{WindowsWindowCreator = false;}
+    //         printf("Done\n");
+    //         
+    //     #endif
+    // }
+    
+
+    if (strcmp(cmd,"hello") == 0) {
         printf("Hello World!\n");
+        
     }
-
     else if (strcmp(cmd, "cls") == 0) {
         #ifdef OS_LINUX
             system("clear");
@@ -230,6 +269,7 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
     
     else if (strcmp(cmd, "ver") == 0) {
         printf("ProggShell v0.0.7NU\n");
+        
     }
     else if (strcmp(cmd, "clv") == 0) {
         
@@ -237,6 +277,7 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
         fflush(stdout); 
     }
     else if (strcmp(cmd, "q") == 0 || strcmp(cmd, "quit") == 0 || strcmp(cmd, "exit") == 0 ) {
+        free(CmdSource);
         return false;
     }
     else if (strncmp(cmd, "create", 6) == 0) {
@@ -266,6 +307,9 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
                 }
                 
             }
+            else if (strcmp(arg, "graph") == 0) {
+                CreateGraph(20, 50, 1, 0, "|", "└","┌", "#", "·" ,0,0,95,0);
+            }
         }
         
     }
@@ -293,8 +337,10 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
         char * Localization;
         if (*arg == '\0') {
             Localization = getSection("read:fileNameError",langFile);
-            if(!Localization || Localization == NULL){return true;}
-            printf("%s\n",Localization);
+            if(Localization || Localization != NULL){
+
+                printf("%s\n",Localization);
+            }
         } else {
             long filesize = 0;
             char *content = read_file_to_buffer(arg, &filesize);
@@ -302,21 +348,28 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
             if (content){
                 printf("%s\n\n\n", content);
                 int words = count_words(content, filesize);
-                int symbols = count_symbols(content,filesize, true);
+                int symbols = count_symbols(content,filesize);
                 Localization = getSection("read:info",langFile);
-                if(!Localization || Localization == NULL){return true;}
-                printf(Localization, words,symbols);
-                free(content);
+                if(Localization || Localization != NULL){
+                    printf(Localization, words,symbols);
+                    free(content);
+
+                }
             }
             else{
                 Localization = getSection("general:cantOpenFile",langFile);
-                if(!Localization || Localization == NULL){return true;}
-                printf("%s\n",Localization);
+                if(!Localization || Localization == NULL){
+                    printf("%s\n",Localization);
+                    
+                }
             }
             
           
         }
-        free(Localization);
+        if (Localization != NULL){
+            free(Localization);
+        }
+        
     }
     // No-Exist flag system
     else if (strcmp(cmd, "noflag") == 0) {
@@ -339,6 +392,33 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
         }
         
     }
+    // else if (strncmp(cmd, "get ", 4) == 0) {
+    //     char *arg = CmdSource + 4;
+    //     while (*arg == ' ') arg++;
+    //     if (*arg == '\0'){
+            
+    //         printf("[Download]: Error downloading '%s' use https or http\n", arg);
+    //     }
+    //     else {
+    //         char filename[256];
+    //         get_filename_from_url(arg, filename, sizeof(filename));
+    //         printf("[Download]: Trying download %s ...\n" , filename);
+    //         download(arg,filename);
+    //         if (access(filename,'r'))
+    //         {
+                
+    //             printf("[Download]: Download '%s' ended succefuly!\n", filename);
+    //             
+    //         }
+    //         else{
+    //             printf("[Download]: Download '%s' ended with errors!\n", filename);
+    //             
+
+    //         }
+            
+    //     }
+        
+    // }
     else if (strncmp(cmd, "run ", 4) == 0) {
         char *arg = CmdSource + 4;
         while (*arg == ' ') arg++;
@@ -355,6 +435,7 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
                 printf("Error executing command '%s' Error code: %d\n" , arg , Status );
             }
         }
+        
         
     }
     else if (strncmp(cmd, "exec", 4) == 0) {
@@ -445,10 +526,12 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
     if (!flags->noFlag) {
         if (flags->shutDownAfter) shutdownComputer();
         if (flags->debugMode) printf("(debug: executing '%s')\n", cmd);
+        free(CmdSource);
         return !flags->exitAfter;
+        
     }
 
-    
+    free(CmdSource);
     return true;
 
 }
@@ -456,7 +539,6 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
 
 
 int main(int argc, char *argv[]) {
-    char input[256];
     PSH_GlobalFlags flags = {0}; // сохраняем между командами
     #ifdef OS_WINDOWS
     // Устанавливаем кодировку ввода и вывода в UTF-8 (65001)
@@ -492,7 +574,12 @@ int main(int argc, char *argv[]) {
     }
     while (1) {
         printf("> ");
-        fgets(input, sizeof(input), stdin);
+        char *input = getDynamicInput();
+
+        if (!input) {
+            printf("Memory error!\n");
+            break;
+        }
         
         
         
@@ -501,10 +588,11 @@ int main(int argc, char *argv[]) {
         
         
         parseGlobalFlags(input, &flags);
-        
         if (!handleCommand(input, &flags)) {
+            if (input) free(input);
             break;
         }
+        free(input);
     }
     
     return 0;

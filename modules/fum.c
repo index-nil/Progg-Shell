@@ -1,14 +1,22 @@
+// #include "mongoose.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+// #ifdef _WIN32
+//   #define WIN32_LEAN_AND_MEAN
+//   #include <winsock2.h>
+// #endif
+
 #ifdef _WIN32
+
+    #define WIN32_LEAN_AND_MEAN
     #include <windows.h>
 #else
     #include <dirent.h>
     #include <sys/stat.h>
 #endif
-
-
+#include "UIlib.h"
+#include "fum.h"
 //Progg Shell 2026.01.12 File module GPLv3
 //DONT FORGET ADD FREE()!!!
 
@@ -39,8 +47,8 @@ int count_symbols(const char* buffer, long length){
     for (long i = 0; i < length - 1; i++)
     {
         
-        if ((buffer[i] == ' ' || buffer[i] == '\n' || buffer[i] == '\r'|| buffer[i] == '\t') && 
-            (buffer[i + 1] != ' ' && buffer[i + 1] != '\n' && buffer[i + 1] != '\r'|| buffer[i] != '\t')) {
+         
+        if (buffer[i] != '\r'|| buffer[i] != '\t') {
             words++;
         }
     }
@@ -132,11 +140,6 @@ int count_directories(const char *path) {
 
 
 
-typedef struct {
-    char** names;
-    int count;
-} DirList;
-
 
 DirList get_directories(const char* path) {
     DirList result = {NULL, 0};
@@ -210,3 +213,114 @@ char* CombinePath(const char *folder, const char *file) {
     
     return newPath;
 }
+
+
+// static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
+//     struct download_status *status = (struct download_status *) c->fn_data;
+
+//     if (ev == MG_EV_READ) {
+//         // Данные пришли в буфер c->recv
+//         // Нам нужно распарсить заголовки только один раз, чтобы узнать длину
+//         if (status->content_len == 0) {
+//             struct mg_http_message hm;
+//             int res = mg_http_parse((char *) c->recv.buf, c->recv.len, &hm);
+//             if (res > 0) { // Заголовки получены
+//                 struct mg_str *cl = mg_http_get_header(&hm, "Content-Length");
+//                 if (cl) status->content_len = (size_t) strtoull(cl->buf, NULL, 10);
+                
+//                 // Сдвигаем указатель записи в файл, чтобы не записать заголовки в сам файл
+//                 // Но проще всего в Mongoose 7 дождаться конца заголовков:
+//                 // Данные тела начинаются после hm.body.ptr
+//             }
+//         }
+
+//         // Если мы уже в процессе скачивания тела
+//         // В упрощенном виде для маленьких файлов пишем всё в MG_EV_HTTP_MSG
+//         // Но для БОЛЬШИХ файлов пишем здесь и очищаем буфер:
+//     } 
+//     else if (ev == MG_EV_HTTP_MSG) {
+//         struct mg_http_message *hm = (struct mg_http_message *) ev_data;
+        
+//         // Записываем всё тело сразу
+//         if (status->fp != NULL && hm->body.len > 0) {
+//             fwrite(hm->body.buf, 1, hm->body.len, status->fp);
+//         }
+
+//         create_pb("[Download]: ", 1, 100, 20, "∎", "-", "|", 1, 92);
+//         printf("\n[Download]: Success! File saved.\n");
+//         status->is_done = true;
+//     } 
+//     else if (ev == MG_EV_ERROR) {
+//         printf("\n[Download]: Error: %s\n", (char *) ev_data);
+//         status->is_done = true;
+//     }
+// }
+// void download(const char *url, const char *filename) {
+//     mg_log_set(0); // Жестко отключаем все уровни логирования
+//     struct mg_mgr mgr;
+//     struct download_status status = {0};
+    
+//     status.fp = fopen(filename, "wb");
+//     if (!status.fp) return;
+
+//     mg_mgr_init(&mgr);
+    
+//     // В Mongoose 7.x mg_http_connect принимает URL строкой
+//     struct mg_connection *c = mg_http_connect(&mgr, url, ev_handler, &status);
+    
+//     if (c == NULL) {
+//         printf("[Download]: Failed to connect\n");
+//         fclose(status.fp);
+//         mg_mgr_free(&mgr);
+//         return;
+//     }
+
+//     if (strncmp(url, "https", 5) == 0) {
+//         mg_tls_init(c, NULL);
+//     }
+
+//     // ТАК КАК МЫ НЕ МОЖЕМ ИСПОЛЬЗОВАТЬ mg_url (incomplete type),
+//     // МЫ ИСПОЛЬЗУЕМ ХЕЛПЕРЫ САМОЙ БИБЛИОТЕКИ ДЛЯ ОТПРАВКИ ЗАПРОСА
+    
+//     // В простейшем случае для большинства серверов сработает такой запрос:
+//     mg_printf(c, "GET %s HTTP/1.0\r\n"
+//                  "Host: %s\r\n"
+//                  "User-Agent: Mongoose\r\n"
+//                  "Connection: close\r\n\r\n", 
+//                  url, "localhost"); 
+//     // Примечание: Современные серверы поймут полный URL в строке GET
+
+//     while (!status.is_done) {
+//         mg_mgr_poll(&mgr, 100);
+//     }
+
+//     if (status.fp) fclose(status.fp);
+//     mg_mgr_free(&mgr);
+// }
+
+// void get_filename_from_url(const char *url, char *buffer, size_t buffer_size) {
+//     const char *last_slash = strrchr(url, '/');
+//     const char *start = last_slash ? last_slash + 1 : url;
+    
+//     // Ищем конец имени (начало параметров ?) или конец строки
+//     const char *query_params = strchr(start, '?');
+//     size_t length;
+
+//     if (query_params) {
+//         length = query_params - start;
+//     } else {
+//         length = strlen(start);
+//     }
+
+//     if (length >= buffer_size) {
+//         length = buffer_size - 1;
+//     }
+
+//     // Если имя пустое (например, ссылка заканчивается на /), ставим дефолтное
+//     if (length == 0) {
+//         strncpy(buffer, "downloaded_file.dat", buffer_size);
+//     } else {
+//         strncpy(buffer, start, length);
+//         buffer[length] = '\0';
+//     }
+// }
