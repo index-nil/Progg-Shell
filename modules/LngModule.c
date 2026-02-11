@@ -11,65 +11,61 @@
 #endif
 
 
-//Progg Shell 2026.02.1 Language Module GPLv3
+//Progg Shell 2026.02.1 Language Module MIT License
 //DONT FORGET ADD FREE()!!!
 
 
 
 char* getSection(char* SectionName, char* langFile) {
     FILE* file = fopen(langFile, "r");
-    if (!file) {
-        perror("Failed to open language file!");
-        return NULL;
-    }
+    if (!file) return NULL;
 
-    size_t currentCapacity = 256;
-    char* fullLang = malloc(currentCapacity);
-    if (!fullLang) { fclose(file); return NULL; }
-    fullLang[0] = '\0'; 
-
-    int Found = 0;
-    char line[256];
     char target[128];
     snprintf(target, sizeof(target), "$%s", SectionName);
 
-    while (fgets(line, sizeof(line), file)) {
-        // Убираем только символы переноса для сравнения заголовка
-        line[strcspn(line, "\r\n")] = 0;
+    size_t capacity = 512;
+    char* fullLang = malloc(capacity);
+    if (!fullLang) { fclose(file); return NULL; }
+    fullLang[0] = '\0';
 
-        if (line[0] == '$') {
-            if (Found == 1) break; // Секция закончилась
-            if (strcmp(line, target) == 0) Found = 1; // Секция началась
-            continue; 
+    int found = 0;
+    char* line = NULL;
+    size_t lineCap = 0;
+
+    // Читаем файл посимвольно, чтобы динамически подстраиваться под длину строки
+    while (1) {
+        char buffer[1024]; // Временный буфер для чтения куска строки
+        if (fgets(buffer, sizeof(buffer), file) == NULL) break;
+
+        // Если это заголовок секции
+        if (buffer[0] == '$') {
+            char check[1024];
+            strcpy(check, buffer);
+            check[strcspn(check, "\r\n")] = 0; // Чистим только для сравнения
+
+            if (found) break; // Выходим, если началась новая секция
+            if (strcmp(check, target) == 0) found = 1;
+            continue;
         }
 
-        // Если мы внутри нужной секции
-        if (Found == 1) {
-            if (line[0] == '#' || line[0] == '\0') continue;
+        if (found) {
+            if (buffer[0] == '#') continue;
 
-            // Возвращаем перенос строки для корректного вывода
-            strcat(line, "\n"); 
-
-            size_t lineLen = strlen(line);
+            size_t addedLen = strlen(buffer);
             size_t currentLen = strlen(fullLang);
 
-            if (currentLen + lineLen + 1 > currentCapacity) {
-                currentCapacity = currentLen + lineLen + 128; 
-                char* temp = realloc(fullLang, currentCapacity);
+            // Динамически расширяем итоговый буфер
+            if (currentLen + addedLen + 1 > capacity) {
+                capacity = currentLen + addedLen + 512;
+                char* temp = realloc(fullLang, capacity);
                 if (!temp) { free(fullLang); fclose(file); return NULL; }
                 fullLang = temp;
             }
-            strcat(fullLang, line);
+            strcat(fullLang, buffer); // Перенос \n берется прямо из файла!
         }
     }
 
     fclose(file);
-
-    // Если ничего не нашли, освобождаем память и возвращаем NULL
-    if (strlen(fullLang) == 0) {
-        free(fullLang);
-        return NULL;
-    }
-
+    if (strlen(fullLang) == 0) { free(fullLang); return NULL; }
     return fullLang;
 }

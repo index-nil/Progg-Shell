@@ -3,6 +3,7 @@ $help
 ver    - Print Shell version
 hello  - Print "Hello world!"
 quit , q , exit - Exit from Shell
+fl,dir,ls - Show objects in current folder
 del <Path + Full File name> - Delete file
 delay <ms> - Wait some time 
 prt <word> - Print string
@@ -10,13 +11,16 @@ prtread <Path + Full File name> - Print file content
 noflag - Disable flags
 exflag - Enable flags
 run <command> - Send command to Windows
-cmd    - Open Windows Command Prompt
+crt <file name> - Creating or cleaning file
+cmd    - Open System Command Prompt
 clv    - Clear view
 cls    - Clear Screen
+cd  <folder name or path to folder> - Enter in the folder
 create <object_name> - create object (For extensions developers)
 cpu-load - Show CPU load
 exec <Path + Full File name> - Execute file
 set-lng <language file name> - Sets language file to file in program folder
+mdr <folder name> - create folder in current path
 
 
 [Parameters]

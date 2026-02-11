@@ -795,7 +795,7 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags,ShellMemory *mem) {
         return !flags->exitAfter;
         
     }
-
+    
     free(CmdSource);
     return true;
 
@@ -804,6 +804,7 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags,ShellMemory *mem) {
 
 
 int main(int argc, char *argv[]) {
+    
     ShellMemory current_path;
     init_start_path(&current_path);
     PSH_GlobalFlags flags = {0}; // сохраняем между командами
@@ -818,7 +819,6 @@ int main(int argc, char *argv[]) {
     GetConsoleMode(hOut, &dwMode);
     SetConsoleMode(hOut, dwMode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
     #endif
-    
     
     setlocale(LC_ALL, "");
     
