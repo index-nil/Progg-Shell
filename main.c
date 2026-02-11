@@ -5,6 +5,7 @@
 #include <stdlib.h>  // System control
 #include <errno.h> //Error number print 
 #include <locale.h> //CMD set system language
+#include <dirent.h> // dir || ls || fl commands
 #include "modules/fum.h" //File Utils Module import 
 #include "modules/UIlib.h" //Progress bar, radio button and other
 #include "modules/LngModule.h" //Localization
@@ -12,26 +13,26 @@
 #include "modules/Sys_load.h"
 // #include "modules/mongoose.h"
 #include <signal.h>
-
-
-
-
 #ifdef _WIN32
+    #define OS_WINDOWS
+    #include <windows.h>
+    #include <direct.h>
+    #define GetCurrentDir _getcwd
+    #define ChangeDir _chdir
     #define WIN32_LEAN_AND_MEAN
     #define SLEEP_MS(x) Sleep(x)
-    
 #else
     #include <unistd.h>
+    #include <time.h>
+    #define GetCurrentDir getcwd
+    #define ChangeDir chdir
     #define SLEEP_MS(x) usleep((x)*1000)
-#endif
+    #endif
+    
 
-#ifdef _WIN32 //made for source code compilation on other systems
-#define OS_WINDOWS
-
-#elif __linux__
-#define OS_LINUX
-#include <unistd.h>
-#include <time.h>
+    
+#ifdef __linux__
+    #define OS_LINUX
 #elif __APPLE__
 #define OS_MAC
 #endif
@@ -60,6 +61,11 @@ void strToLower(char *str) {
 
 
 /*--------------Variable create---------------*/
+typedef struct {
+    char *data;     // Сами данные
+    size_t size;    // Сколько байт сейчас реально занято
+    size_t capacity; // Общий размер выделенного блока
+} DynamicBuffer;
 
 typedef struct {
     bool noFlag; //{n
@@ -67,6 +73,11 @@ typedef struct {
     bool shutDownAfter; //{s
     bool debugMode;   // {d
 } PSH_GlobalFlags;
+
+typedef struct {
+    char *data;      // Указатель на строку в куче
+    size_t capacity; // Текущий размер выделенной памяти
+} ShellMemory;
 
 CpuMonitor monitor;
 float cores_load[MAX_CORES];
@@ -76,33 +87,32 @@ volatile sig_atomic_t Exit = false;
 // #ifdef _WIN32
 //     bool WindowsWindowCreator = false;
 // #endif
-int exec(char* arg, PSH_GlobalFlags* flags);
-bool handleCommand(char *cmd, PSH_GlobalFlags *flags);
+
+int exec(char* arg, PSH_GlobalFlags* flags,ShellMemory* mem);
+bool handleCommand(char *cmd, PSH_GlobalFlags *flags, ShellMemory *mem);
+void init_buffer(DynamicBuffer *db, size_t initial_capacity);
+void append_to_buffer(DynamicBuffer *db, const char *new_data, size_t data_len);
+void free_buffer(DynamicBuffer *db);
 /*--------------------------------------------*/
 
+
+
 char* getDynamicInput() {
-    size_t size = 16; // Начальный размер буфера
-    size_t len = 0;
-    char *buffer = malloc(size);
-    if (!buffer) return NULL;
+    DynamicBuffer db;
+    init_buffer(&db, 32); // Начинаем с малого
 
     int ch;
     while ((ch = getchar()) != '\n' && ch != EOF) {
-        buffer[len++] = ch;
-        
-        // Если место закончилось, увеличиваем буфер в 2 раза
-        if (len + 1 >= size) {
-            size += 16;
-            char *new_buffer = realloc(buffer, size);
-            if (!new_buffer) {
-                free(buffer);
-                return NULL;
-            }
-            buffer = new_buffer;
-        }
+        char c = (char)ch;
+        append_to_buffer(&db, &c, 1);
     }
-    buffer[len] = '\0'; // Завершающий ноль
-    return buffer;
+
+    if (db.size == 0 && ch == EOF) {
+        free_buffer(&db);
+        return NULL;
+    }
+
+    return db.data; // Возвращаем указатель. Владение переходит к вызывающему.
 }
 
 
@@ -120,31 +130,148 @@ bool is_empty(const char *s) {
     
 }
 
-int exec(char* arg,PSH_GlobalFlags* flags){
+void init_buffer(DynamicBuffer *db, size_t initial_capacity) {
+    db->capacity = initial_capacity > 0 ? initial_capacity : 16;
+    db->size = 0;
+    db->data = (char *)malloc(db->capacity);
+}
+
+
+void append_to_buffer(DynamicBuffer *db, const char *new_data, size_t data_len) {
+    while (db->size + data_len >= db->capacity) {
+        db->capacity += 16; //Add 16 bytes 
+        char *temp = (char *)realloc(db->data, db->capacity);
+        if (!temp) {
+            fprintf(stderr, "\033[38;2;209;0;0mError\033[0m\n");
+            return;
+        }
+        db->data = temp;
+    }
+    // Копируем данные в конец
+    memcpy(db->data + db->size, new_data, data_len);
+    db->size += data_len;
+    db->data[db->size] = '\0'; // Всегда держим нуль-терминатор в конце
+}
+// 3. Очистка
+void free_buffer(DynamicBuffer *db) {
+    free(db->data);
+    db->data = NULL;
+    db->size = db->capacity = 0;
+}
+void init_start_path(ShellMemory* mem) {
+    DynamicBuffer temp;
+    
+
+    init_buffer(&temp, 256); 
+
+    if (GetCurrentDir(temp.data, temp.capacity) != NULL) {
+        
+        
+        mem->capacity = strlen(temp.data) + 16;
+        mem->data = (char*)malloc(mem->capacity);
+        
+       
+        if (mem->data) {
+            strcpy(mem->data, temp.data);
+        }
+    } else {
+        
+        mem->capacity = 16;
+        mem->data = (char*)malloc(mem->capacity);
+        if (mem->data) {
+            #ifdef _WIN32
+                strcpy(mem->data, "C:\\");
+            #else
+                strcpy(mem->data, "/");
+            #endif
+        }
+    }
+    free_buffer(&temp);
+}
+void psh_change_dir(const char* target, ShellMemory* mem) {
+    // 1. Пытаемся сменить папку
+    if (ChangeDir(target) == 0) {
+        
+        DynamicBuffer temp;
+        // ОШИБКА БЫЛА ЗДЕСЬ: нужно передавать адрес (&), а не разыменование (*)
+        init_buffer(&temp, 256); // Начнем с 256 байт, это разумный минимум
+
+        // 2. Получаем текущую директорию "резиновым" способом
+        // Мы пытаемся получить путь. Если GetCurrentDir возвращает NULL и ошибка ERANGE,
+        // значит буфер мал. Увеличиваем и пробуем снова.
+        while (GetCurrentDir(temp.data, temp.capacity) == NULL) {
+            if (errno == ERANGE) {
+                // Буфер мал — удваиваем размер
+                temp.capacity *= 2;
+                char *new_ptr = (char*)realloc(temp.data, temp.capacity);
+                if (!new_ptr) {
+                    perror("\033[38;2;209;0;0mMemory allocation error\033[0m\n");
+                    free_buffer(&temp);
+                    return;
+                }
+                temp.data = new_ptr;
+            } else {
+                // Другая ошибка (например, прав нет)
+                perror("getcwd error\n");
+                free_buffer(&temp);
+                return;
+            }
+        }
+
+        // 3. Обновляем основной ShellMemory (mem)
+        // ОШИБКА БЫЛА ЗДЕСЬ: strlen требует char*, а не структуру. Используем temp.data
+        size_t new_len = strlen(temp.data);
+        
+        if (new_len >= mem->capacity) {
+            mem->capacity = new_len + 16;
+            char *new_mem_data = (char*)realloc(mem->data, mem->capacity);
+            // Всегда проверяй realloc!
+            if (new_mem_data) {
+                mem->data = new_mem_data;
+            }
+        }
+        
+        // Копируем данные из буфера temp в память шелла
+        strcpy(mem->data, temp.data);
+        
+        // 4. Очищаем временный буфер
+        free_buffer(&temp);
+
+    } else {
+        // Ошибка смены директории (нет такой папки и т.д.)
+        // Лучше выводить, какую папку не нашли
+        fprintf(stderr, "Error changing dir to '%s': %s\n", target, strerror(errno));
+    }
+}
+
+int exec(char* arg,PSH_GlobalFlags* flags,ShellMemory* mem){
             
-        FILE *fp = fopen(arg, "r");
+        FILE *fp = fopen(arg, "rb");
         if (!fp) {
             printf("Failed to open File!\n");
             return -1;
         }
-        char buffer[2048];
-        while (fgets(buffer, sizeof(buffer), fp)) {
+        fseek(fp, 0, SEEK_END);
+        long size = ftell(fp);
+        rewind(fp);
+        char *buffer = (char*)malloc(size + 1);
+        while (fgets(buffer, size + 1, fp)) {
             
             char *token = strtok(buffer, "\n\r");
             while (token != NULL) {
                 // Очистка от ведущих пробелов
                 while (*token == ' ') token++;
                 
-                if (!handleCommand(token, flags)) { fclose(fp); return 0;}
+                if (!handleCommand(token, flags,mem)) { fclose(fp); return 0;}
                 token = strtok(NULL, "\n\r");
             }
         
         }
         
         fclose(fp);
+        free(buffer);
         return 0;
 }
-
 
 void parseGlobalFlags(char *cmd, PSH_GlobalFlags *flags) {
     
@@ -179,7 +306,7 @@ void parseGlobalFlags(char *cmd, PSH_GlobalFlags *flags) {
         cmd[strlen(cmd)-1] = '\0';
     }
 
-bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
+bool handleCommand(char *cmd, PSH_GlobalFlags *flags,ShellMemory *mem) {
     if (is_empty(cmd)) return true;
     char *CmdSource = strdup(cmd);
     if (!CmdSource) return true;
@@ -190,6 +317,7 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
         cmd[strlen(cmd)-1] = '\0';
 
     // if (strcmp(cmd, "windows-window-creator") == 0) {
+
         
     //     #ifndef _WIN32
     //         printf("This Module cant run on your OS! (Only Windows)\n");
@@ -201,7 +329,7 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
 
     //         }
     //         else{WindowsWindowCreator = false;}
-    //         printf("Done\n");
+    //         printf("\033[38;2;33;198;0mDone\033[0m\n");
     //         
     //     #endif
     // }
@@ -268,9 +396,130 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
     }
     
     else if (strcmp(cmd, "ver") == 0) {
-        printf("ProggShell v0.0.7NU\n");
+
+        printf("\n⠀⢀⣴⡿⠛⠿⣶⡀⠀⠀⠀⠀⠀⣰⡾⠟⠻⣷⡄⠀⠀⠀⠀⠀⣠⡾⠟⠛⢿⡆\n ⠀⣾⡏⠀⠀⠀⣿⡇⠀⠀⠀⠀⣸⡟⠀⠀⠀⣿⡇⠀⠀⠀⠀⠀⣿⡇⠀⢀⣾⠇\n⢰⣿⠀⠀⠀⢠⣿⠁⠀⠀⠀⢀⣿⠃⠀⠀⠀⣿⡇⠀⠀⠀⠀⠀⣨⣿⢿⣿⡁\n⢸⣿⠀⠀⠀⣼⡟⠀⠀⠀⠀⢸⣿⠀⠀⠀⣸⡿⠀⠀⠀⠀⢠⣾⠋⠀⠀⢹⣿⠀\n⠘⣿⣤⣤⣾⠟⠀⠀⣶⡆⠀⠈⢿⣦⣤⣴⠿⠁⠀⣴⡶⠀⠘⢿⣤⣤⣤⡾⠏\n⠀⠀⠉⠉⠀⠀⠀⠀⠉⠀⠀⠀⠀⠈⠉⠀⠀⠀⠀⠈⠀⠀⠀⠀⠈⠉⠁⠀⠀");
+        printf("\033[38;2;160;0;209mProggShell\033[0m v0.0.8\n");
+        
         
     }
+    // Path commands
+    else if (strncmp(cmd, "cd ", 3) == 0) {
+        char *path_arg = CmdSource + 3; // Берем путь из оригинала (чтобы регистр не портился)
+        while (*path_arg == ' ') path_arg++; // Пропускаем пробелы
+        
+        if (*path_arg != '\0') {
+            psh_change_dir(path_arg, mem); // Вызываем твою новую функцию
+        }
+        free(CmdSource);
+        
+        return true;
+    }
+    else if (strncmp(cmd, "mdr ", 4) == 0) {
+        char *arg = CmdSource + 4; 
+        while (*arg == ' ') arg++; 
+        char* FullPath = CombinePath(mem->data, arg);
+        if (*arg != '\0') {
+            #ifdef _WIN32
+            if (_mkdir(FullPath) != 0){printf("\033[38;2;209;0;0mError: %s\033[0m\n",strerror(errno));}
+            else{printf("\033[38;2;33;198;0mDone\033[0m\n");}
+            #else
+            if (mkdir(FullPath) != 0){printf("Error: %s\n",strerror(errno));}
+            else{printf("\033[38;2;33;198;0mDone\033[0m\n");}
+            #endif
+        }
+        free(FullPath);
+        free(CmdSource);
+        return true;
+    }
+    else if (strncmp(cmd, "crt ", 4) == 0) {
+        char *arg = CmdSource + 4; 
+        while (*arg == ' ') arg++; 
+        char* FullPath = CombinePath(mem->data, arg);
+        if (*arg != '\0') {
+            FILE *file = fopen(FullPath,"w"); 
+            if (file){
+                fclose(file);
+                printf("\033[38;2;33;198;0mDone\033[0m\n");
+            }      
+
+            else {
+                printf("\033[38;2;209;0;0mError: %s\033[0m\n",strerror(errno));
+            }
+        }
+        free(FullPath);
+        free(CmdSource);
+        
+        return true;
+    }
+    else if (strncmp(cmd, "fl", 4) == 0||strncmp(cmd, "dir", 4) == 0||strncmp(cmd, "ls", 4) == 0) {
+        char *folder_name = strrchr(mem->data, '/'); 
+
+        // Если на Windows используются обратные слэши, проверим и их
+        if (!folder_name) folder_name = strrchr(mem->data, '\\');
+
+        if (folder_name) {
+            // strrchr возвращает указатель на сам слэш, поэтому прибавляем 1
+            folder_name++; 
+        } else {
+            // Если слэшей нет, значит мы в корне или имя простое
+            folder_name = mem->data;
+        }
+        struct dirent *entry;
+        DIR *dp;
+
+        // Открываем текущую директорию из памяти шелла
+        dp = opendir(mem->data);
+
+        if (dp != NULL){
+            int count = 0;
+            
+            printf("\n--------%s fill--------\n",folder_name);
+            while ((entry = readdir(dp)) != NULL) {
+                
+                if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+                    continue;
+                }
+                char* full_path = CombinePath(mem->data, entry->d_name);
+                count++;
+                
+                if (is_directory(full_path)){
+                    printf("[DIR] %s",entry->d_name);
+                    printf("\n");
+                    
+                }
+                else
+                {
+                    continue;
+                }
+                free(full_path);
+            }
+            rewinddir(dp);
+            while ((entry = readdir(dp)) != NULL) {
+                
+                if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+                    continue;
+                }
+                char* full_path = CombinePath(mem->data, entry->d_name);
+                
+                if (is_directory(full_path)){
+                    continue;
+                    
+                }
+                else
+                {
+                        printf("[FILE] %s",entry->d_name);
+                        printf("\n");
+                }
+                free(full_path);
+            }
+            printf("\n---------total: %d---------\n",count);
+            closedir(dp);
+        }
+    }
+
+
+
+
     else if (strcmp(cmd, "clv") == 0) {
         
         printf("\033[2J\033[H");
@@ -299,16 +548,21 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
                         break;
                     }
                     create_pb("Test", 1,i,10,"|","·","|",1,95);
-                    #ifdef _WIN32
-                        Sleep(100);
-                    #else
-                        usleep(100000);
-                    #endif
+                    SLEEP_MS(250);
                 }
                 
             }
             else if (strcmp(arg, "graph") == 0) {
-                CreateGraph(20, 50, 1, 0, "|", "└","┌", "#", "·" ,0,0,95,0);
+                printf("\033[?1049h");
+                for (size_t i = 0; i < 100; i++)
+                {
+                    CreateGraph(20,i, 1, 0, "|", "└","┌", "#", "·" ,0,0,95,0);
+                    SLEEP_MS(10);
+                    printf("\033[H");
+                    printf("\033[K");
+                    
+                }
+                printf("\033[?1049l");
             }
         }
         
@@ -318,17 +572,31 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
         while (*arg == ' ') arg++;  // пропускаем пробелы
 
         if (*arg == '\0') {
-            printf("Error: Specify filename!\n");
+            printf("\033[38;2;209;0;0mError: %s\033[0m\n",strerror(errno));
         } else {
-            char filename[256];
-            strncpy(filename, arg, sizeof(filename)-1);
-            filename[sizeof(filename)-1] = '\0';
-
-            if (remove(filename) != 0) {
-                printf("Error %d: %s\n", errno, strerror(errno));
-            } else {
-                printf("File successfully deleted!\n");
+            
+            DynamicBuffer FullPath; //Made for future
+            init_buffer(&FullPath,256);
+            append_to_buffer(&FullPath, mem->data, strlen(mem->data));
+            
+            // 2. Добавляем разделитель (слэш)
+            // 2. Добавляем разделитель, только если его еще нет в конце mem->data
+            size_t path_len = strlen(mem->data);
+            if (path_len > 0 && mem->data[path_len - 1] != '/' && mem->data[path_len - 1] != '\\') {
+                #ifdef OS_WINDOWS
+                    append_to_buffer(&FullPath, "\\", 1);
+                #else
+                    append_to_buffer(&FullPath, "/", 1);
+                #endif
             }
+            // 3. Добавляем имя файла
+            append_to_buffer(&FullPath, arg, strlen(arg));
+            if (remove(FullPath.data) != 0) {
+                printf("\033[38;2;209;0;0mError: %s\033[0m\n",strerror(errno));
+            } else {
+                printf("\033[38;2;33;198;0mFile successfully deleted!\033[0m\n");
+            }
+            free_buffer(&FullPath);
         }
     }
     else if (strncmp(cmd, "prtread ", 8) == 0) {
@@ -429,10 +697,11 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
         else {
             int Status = system(arg);
             if (Status == 0) {
-                printf("Done\n");
+                printf("\033[38;2;33;198;0mDone\033[0m\n\n");
             }
             else {
-                printf("Error executing command '%s' Error code: %d\n" , arg , Status );
+            
+                printf("\033[38;2;209;0;0mError executing command '%s' Error code: %d\033[0m\n\n" , arg , Status );
             }
         }
         
@@ -446,7 +715,7 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
         }
         
         else {
-            exec(arg,flags);
+            exec(arg,flags,mem);
         }
         
     }
@@ -458,7 +727,8 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
             Status = system("cmd");
         #endif //MacOS?
         if (Status != 0) {
-            printf("Error! Error code: %d\n", Status );
+            
+            printf("\033[38;2;209;0;0mError! Error code: %d\033[0m\n", Status );
         }
         else {
             printf("Returned to ProggShell\n");
@@ -478,12 +748,7 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
             
             long ms = atol(arg);
 
-            #ifdef _WIN32
-                Sleep(ms);
-            #else
-                usleep(ms * 1000);
-            #endif
-
+            SLEEP_MS(ms);
         }
         
     }
@@ -494,9 +759,9 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
         char *arg = cmd + 7;
         while (*arg == ' ') arg++;
         if (strlen(arg) == 0) {
-            printf("Error! Specify language file!\n");
+            printf("\033[38;2;209;0;0mError! Specify language file\033[0m\n");
         } else if (strlen(arg) >= 10) {
-            printf("Error: filename too long! Max %d chars\n", 10-1);
+            printf("\033[38;2;209;0;0mError: filename too long! Max %d chars\033[0m\n", 10-1);
         } else {
             strncpy(filename, arg, sizeof(filename)-1);
             filename[sizeof(filename)-1] = '\0';
@@ -511,7 +776,7 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
     else if (strcmp(cmd, "help") == 0) {
         char* Temp = getSection("help", langFile);
         if (Temp == NULL || !Temp){
-            printf("The partition is free or does not exist | ERROR 100\n");
+            printf("\033[38;2;209;0;0mError:The partition of language is free or does not exist\033[0m\n");
         }
         else{
             printf("%s",Temp);
@@ -539,6 +804,8 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags) {
 
 
 int main(int argc, char *argv[]) {
+    ShellMemory current_path;
+    init_start_path(&current_path);
     PSH_GlobalFlags flags = {0}; // сохраняем между командами
     #ifdef OS_WINDOWS
     // Устанавливаем кодировку ввода и вывода в UTF-8 (65001)
@@ -552,7 +819,8 @@ int main(int argc, char *argv[]) {
     SetConsoleMode(hOut, dwMode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
     #endif
     
-    setlocale(LC_ALL, "ru_RU.UTF-8");
+    
+    setlocale(LC_ALL, "");
     
     if (argc > 1) {
         printf("Loading: %s\n", argv[1]);
@@ -561,23 +829,24 @@ int main(int argc, char *argv[]) {
         FILE *file = fopen(argv[1], "r");
         if (file) {
             printf("Loaded file!\n");
-            exec(argv[1],&flags);
+            exec(argv[1],&flags,&current_path);
             fclose(file);
             Sccode = 0;
         } else {
             Sccode = 1;
-            perror("Error: Cant open file!");
+            perror("\033[38;2;209;0;0mError: Cant open file!\033[0m");
         }   
     
         printf("Script Ended with code %d", Sccode);
+        free(current_path.data);
         return(Sccode);
     }
     while (1) {
-        printf("> ");
+        printf("\n%s > ", current_path.data);
         char *input = getDynamicInput();
 
         if (!input) {
-            printf("Memory error!\n");
+            printf("\033[38;2;209;0;0mMemory error!\033[0m\n");
             break;
         }
         
@@ -588,12 +857,12 @@ int main(int argc, char *argv[]) {
         
         
         parseGlobalFlags(input, &flags);
-        if (!handleCommand(input, &flags)) {
+        if (!handleCommand(input, &flags,&current_path)) {
             if (input) free(input);
             break;
         }
         free(input);
     }
-    
+    free(current_path.data);
     return 0;
 }

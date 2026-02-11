@@ -1,4 +1,5 @@
 // #include "mongoose.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -324,3 +325,32 @@ char* CombinePath(const char *folder, const char *file) {
 //         buffer[length] = '\0';
 //     }
 // }
+
+
+
+
+
+
+// Определяем, какую библиотеку подключать
+#ifdef _WIN32
+    #include <windows.h>
+#else
+    #include <sys/types.h>
+    #include <sys/stat.h>
+    #include <unistd.h>
+#endif
+
+int is_directory(const char *path) {
+#ifdef _WIN32
+    DWORD dwAttrib = GetFileAttributesA(path); // 'A' для работы с char* (ANSI)
+
+    return (dwAttrib != INVALID_FILE_ATTRIBUTES && 
+           (dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
+#else
+    struct stat statbuf;
+    if (stat(path, &statbuf) != 0) {
+        return 0; // Ошибка (файл не найден или нет доступа)
+    }
+    return S_ISDIR(statbuf.st_mode);
+#endif
+}

@@ -3,12 +3,12 @@
 
 //File Utils Module header
 
-struct download_status {
-    FILE *fp;
-    size_t content_len;
-    size_t received_len;
-    bool is_done;
-};
+// struct download_status {
+//     FILE *fp;
+//     size_t content_len;
+//     size_t received_len;
+//     bool is_done;
+// };
 typedef struct {
     char** names;
     int count;
@@ -29,8 +29,10 @@ char* CombinePath(const char *folder, const char *file);
 
 DirList get_directories(const char* path);
 
-void download(const char *url, const char *filename);
+// void download(const char *url, const char *filename);
 
 void get_filename_from_url(const char *url, char *buffer, size_t buffer_size);
+
+int is_directory(const char *path);
 
 #endif
