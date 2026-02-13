@@ -22,6 +22,8 @@
     #define WIN32_LEAN_AND_MEAN
     #define SLEEP_MS(x) Sleep(x)
 #else
+    #include <sys/stat.h>
+    #include <sys/types.h>
     #include <unistd.h>
     #include <time.h>
     #define GetCurrentDir getcwd
@@ -61,6 +63,7 @@ void strToLower(char *str) {
 
 
 /*--------------Variable create---------------*/
+
 typedef struct {
     char *data;     // Сами данные
     size_t size;    // Сколько байт сейчас реально занято
@@ -81,7 +84,8 @@ typedef struct {
 
 CpuMonitor monitor;
 float cores_load[MAX_CORES];
-char langFile[10] = "en-en.lng";
+char* langFile;
+DynamicBuffer ProgrammDir;
 volatile sig_atomic_t Exit = false;
 
 // #ifdef _WIN32
@@ -370,22 +374,32 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags,ShellMemory *mem) {
                     int val = (int)cores_load[i];
                     if (val > 100) val = 100;
 
-                    // overwrite ставим 2: это сделает \r в начале и \n в конце
-                    // Color: 32 - зеленый, 33 - желтый, 31 - красный
-                    int color = 32; 
-                    if (val > 50) color = 33;
-                    if (val > 80) color = 31;
+                    int r = 41;
+                    int g = 204; 
+                    int b = 0;  // Green
+                    if (val > 50){
+                        r = 255;
+                        g = 179;
+                        b = 0; // Yellow
+                    } 
+                    if (val > 80){
+                        r = 184;
+                        g = 18;
+                        b = 0; // Red
+                    }
 
                     create_pb(
-                        core_label, // Текст "[Core 0]"
-                        1,          // ShowPercent (1 = показать % в конце)
-                        val,        // Значение нагрузки
-                        20,         // Длина полоски (chars)
-                        "#",        // Full char
-                        "-",        // Void
-                        "|",        // Bordes
-                        0,          // overwrite=0
-                        color       // Цвет (ANSI код)
+                        core_label, 
+                        1,         
+                        val,        
+                        20,        
+                        "#",     
+                        "-",
+                        "|",  
+                        0,         
+                        r,
+                        g,
+                        b      
                     );
                     
             }
@@ -423,7 +437,7 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags,ShellMemory *mem) {
             if (_mkdir(FullPath) != 0){printf("\033[38;2;209;0;0mError: %s\033[0m\n",strerror(errno));}
             else{printf("\033[38;2;33;198;0mDone\033[0m\n");}
             #else
-            if (mkdir(FullPath) != 0){printf("Error: %s\n",strerror(errno));}
+            if (mkdir(FullPath,0777) != 0){printf("Error: %s\n",strerror(errno));}
             else{printf("\033[38;2;33;198;0mDone\033[0m\n");}
             #endif
         }
@@ -544,10 +558,10 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags,ShellMemory *mem) {
                 {
                     
                     if (i == 100){
-                        create_pb("Test", 1,i,10,"|","·","|",2,95);
+                        create_pb("Test", 1,i,10,"|","·","|",2,169,0,184);
                         break;
                     }
-                    create_pb("Test", 1,i,10,"|","·","|",1,95);
+                    create_pb("Test", 1,i,10,"|","·","|",1,169,0,184);
                     SLEEP_MS(250);
                 }
                 
@@ -737,6 +751,64 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags,ShellMemory *mem) {
         
     }
 
+    else if (strcmp(cmd, "mem-load") == 0) {
+        printf("\033[?1049h");
+        
+        signal(SIGINT, Stop);
+        while (Exit != true) 
+        {
+            SLEEP_MS(1000);
+            MemoryData memload = get_memory_stats();
+            unsigned long long total_ram_mb = memload.total / 1024 / 1024;
+            unsigned long long used_ram_mb = (memload.total - memload.free) / 1024 / 1024;
+            
+            // 2. Считаем SWAP (Windows Logic: PageFile - Physical RAM)
+            // Добавляем проверку, чтобы не было гигантских чисел
+            unsigned long long total_swap_mb = 0;
+            unsigned long long used_swap_mb = 0;
+
+            if (memload.swap > 0) {
+                total_swap_mb = memload.swap / 1024 / 1024;
+                // Защита от отрицательного результата
+                if (memload.swap >= memload.freeswap) {
+                    used_swap_mb = (memload.swap - memload.freeswap) / 1024 / 1024;
+                }
+            }
+
+            
+            printf("\033[H");
+            
+            printf("(^C To Exit)\n\n");
+            printf("[Memory]:%llu MB\n\n",total_ram_mb);
+            printf("[SWAP]:%llu MB\n\n",total_swap_mb);
+            if (used_ram_mb < (total_ram_mb / 100 * 50)){
+                create_pb("[Memory Usage]:",1, (int)((used_ram_mb * 100) / total_ram_mb),20,"|","-","|",1,17,0,171);
+            }
+            else if (used_ram_mb > (total_ram_mb / 100 * 50)){
+                create_pb("[Memory Usage]:",1, (int)((used_ram_mb * 100) / total_ram_mb),20,"|","-","|",1,255,208,0);
+            }
+            else if (used_ram_mb > (total_ram_mb / 100 * 80)){
+                create_pb("[Memory Usage]:",1, (int)((used_ram_mb * 100) / total_ram_mb),20,"|","-","|",1,209,0,0);
+            }
+            printf("   %llu MB\n\n",used_ram_mb);
+            
+            
+            if (used_swap_mb < (total_swap_mb / 100 * 50)){
+                create_pb("[SWAP Usage]:  ",1, (int)((used_swap_mb * 100) / total_swap_mb),20,"|","-","|",1,17,0,171);
+            }
+            else if (used_swap_mb > (total_swap_mb / 100 * 50)){
+                create_pb("[SWAP Usage]:  ",1, (int)((used_swap_mb * 100) / total_swap_mb),20,"|","-","|",1,255,208,0);
+            }
+            else if (used_swap_mb > (total_swap_mb / 100 * 80)){
+                create_pb("[SWAP Usage]:  ",1, (int)((used_swap_mb * 100) / total_swap_mb),20,"|","-","|",1,209,0,0);
+            }
+            printf("    %llu MB\n\n",used_swap_mb);
+        }
+        fflush(stdout);
+        Exit = false;
+        printf("\033[?1049l");
+    }
+
     else if (strncmp(cmd, "delay ", 6) == 0) {
         char *arg = CmdSource + 6;
         while (*arg == ' ') arg++;
@@ -755,22 +827,25 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags,ShellMemory *mem) {
 
     
     else if (strncmp(cmd, "set-lng", 7) == 0) {
-        char filename[10];
-        char *arg = cmd + 7;
+        char *arg = CmdSource + 7;
         while (*arg == ' ') arg++;
         if (strlen(arg) == 0) {
             printf("\033[38;2;209;0;0mError! Specify language file\033[0m\n");
-        } else if (strlen(arg) >= 10) {
-            printf("\033[38;2;209;0;0mError: filename too long! Max %d chars\033[0m\n", 10-1);
         } else {
-            strncpy(filename, arg, sizeof(filename)-1);
-            filename[sizeof(filename)-1] = '\0';
-
-            strncpy(langFile, filename, sizeof(langFile)-1);
-            langFile[sizeof(langFile)-1] = '\0';
-
-            printf("Language file installed to: %s\n", langFile);
+            char* tempLang = CombinePath(ProgrammDir.data, arg); 
+            
+            if (access(tempLang,0)!= 0){
+                printf("Error cant get read access to '%s'", arg);
+                free(tempLang);
+                
+            }
+            else{
+                if (langFile) free(langFile);
+                langFile = tempLang; 
+                printf("Language file installed to: %s\n", langFile);
+            }
         }
+       
     }
 
     else if (strcmp(cmd, "help") == 0) {
@@ -798,7 +873,7 @@ bool handleCommand(char *cmd, PSH_GlobalFlags *flags,ShellMemory *mem) {
     
     free(CmdSource);
     return true;
-
+    
 }
 
 
@@ -808,6 +883,9 @@ int main(int argc, char *argv[]) {
     ShellMemory current_path;
     init_start_path(&current_path);
     PSH_GlobalFlags flags = {0}; // сохраняем между командами
+    init_buffer(&ProgrammDir,256);
+    
+    append_to_buffer(&ProgrammDir,current_path.data,strlen(current_path.data));
     #ifdef OS_WINDOWS
     // Устанавливаем кодировку ввода и вывода в UTF-8 (65001)
     SetConsoleCP(CP_UTF8);
@@ -821,7 +899,8 @@ int main(int argc, char *argv[]) {
     #endif
     
     setlocale(LC_ALL, "");
-    
+    langFile=CombinePath(ProgrammDir.data,"en-en.lng");
+
     if (argc > 1) {
         printf("Loading: %s\n", argv[1]);
         int Sccode = 0;
@@ -863,6 +942,9 @@ int main(int argc, char *argv[]) {
         }
         free(input);
     }
+    if (langFile) free(langFile);
+    
+    free_buffer(&ProgrammDir);
     free(current_path.data);
     return 0;
 }

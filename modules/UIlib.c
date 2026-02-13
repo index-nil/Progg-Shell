@@ -2,7 +2,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-int create_pb(char* Text ,int ShowPercent, int value,int chars, char* FullChar, char* VoidChar, char* Borders, int overwrite, int Color){
+
+
+/*---------------------------UIlib MIT license------------------------------------*/
+
+
+int create_pb(char* Text ,int ShowPercent, int value,int chars, char* FullChar, char* VoidChar, char* Borders, int overwrite, int r,int g, int b){
     //Create Progress bar
     
     if (!chars){
@@ -22,7 +27,7 @@ int create_pb(char* Text ,int ShowPercent, int value,int chars, char* FullChar, 
     }
     
     printf("%s", Borders);
-    printf("\033[%dm",Color);
+    printf("\033[38;2;%d;%d;%dm",r,g,b);
     for (int i = 0; i < chars; i++)
     {
         if (Steps > 0){

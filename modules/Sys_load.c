@@ -3,13 +3,38 @@
 #include <string.h>
 #include <stdlib.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
 // ==========================================
 // РЕАЛИЗАЦИЯ ДЛЯ LINUX
 // ==========================================
+MemoryData Result = {0}; 
 #ifndef _WIN32
 
 #include <unistd.h>
+#include <sys/sysinfo.h>
 
+MemoryData get_memory_stats() {
+    struct sysinfo info;
+    if (sysinfo(&info) != 0) {
+        perror("sysinfo");
+        return Result;
+    }
+
+    // Значения возвращаются в байтах (нужно умножать на mem_unit)
+    unsigned long long total_ram = info.totalram * info.mem_unit;
+    unsigned long long free_ram  = info.freeram * info.mem_unit;
+    unsigned long long total_swap = info.totalswap * info.mem_unit;
+    unsigned long long free_swap  = info.freeswap * info.mem_unit;
+
+    Result.total = total_ram;
+    Result.free = free_ram;
+    Result.swap = total_swap;
+    Result.freeswap = free_swap; 
+
+    return Result;
+}
 // Вспомогательная функция чтения /proc/stat
 static int read_linux_stats(CoreState* stats, int max_len) {
     FILE* fp = fopen("/proc/stat", "r");
@@ -70,9 +95,34 @@ int cpu_monitor_update(CpuMonitor* monitor, float* usage_per_core) {
 // РЕАЛИЗАЦИЯ ДЛЯ WINDOWS
 // ==========================================
 #else 
-
 #include <winternl.h>
 
+
+MemoryData get_memory_stats(){
+    
+    MemoryData Result = {0}; // Обнуляем всё сразу
+    MEMORYSTATUSEX memInfo;
+    
+    // КРИТИЧЕСКИ ВАЖНО: без этого функция вернет мусор!
+    memInfo.dwLength = sizeof(MEMORYSTATUSEX);
+
+    if (GlobalMemoryStatusEx(&memInfo)) {
+        // Записываем чистые байты
+        Result.total = memInfo.ullTotalPhys;
+        Result.free  = memInfo.ullAvailPhys;
+
+        // В Windows PageFile = RAM + Swap.
+        // Считаем Swap, только если физически файл подкачки существует
+        if (memInfo.ullTotalPageFile > memInfo.ullTotalPhys) {
+            Result.swap = memInfo.ullTotalPageFile - memInfo.ullTotalPhys;
+            Result.freeswap = memInfo.ullAvailPageFile; // Упростим для теста
+        } else {
+            Result.swap = 0;
+            Result.freeswap = 0;
+        }
+    }
+    return Result;
+}
 // Определения для NtQuerySystemInformation (обычно нужны, если нет в стандартных хедерах)
 typedef struct _SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION_STRUCT {
     LARGE_INTEGER IdleTime;

@@ -1,6 +1,11 @@
 #ifndef CPU_MONITOR_H
 #define CPU_MONITOR_H
-
+typedef struct {
+    unsigned long long total;
+    unsigned long long free;
+    unsigned long long swap;
+    unsigned long long freeswap;
+} MemoryData;
 // Максимальное количество поддерживаемых ядер (можно увеличить)
 #define MAX_CORES 128
 
@@ -33,6 +38,10 @@ void cpu_monitor_init(CpuMonitor* monitor);
 // Заполняет массив usage_per_core процентами (0.0 - 100.0)
 // Возвращает количество ядер.
 int cpu_monitor_update(CpuMonitor* monitor, float* usage_per_core);
+
+
+MemoryData get_memory_stats();
+
 
 #endif // CPU_MONITOR_H
 

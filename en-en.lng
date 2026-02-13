@@ -18,6 +18,7 @@ cls    - Clear Screen
 cd  <folder name or path to folder> - Enter in the folder
 create <object_name> - create object (For extensions developers)
 cpu-load - Show CPU load
+mem-load - Show RAM load
 exec <Path + Full File name> - Execute file
 set-lng <language file name> - Sets language file to file in program folder
 mdr <folder name> - create folder in current path
