@@ -2,7 +2,7 @@
 Progg Shell - Shell on C with **not Standard** commands 
 
 
------------------------------------Commands-----------------------------------
+[Commands]
 ver    - Print Shell version
 hello  - Print "Hello world!"
 quit , q , exit - Exit from Shell
@@ -29,4 +29,10 @@ exec <Path + Full File name> - Execute file
 set-lng <language file name> - Sets language file to file in program folder
 ren <new_file_name> - Rename file
 neo <file_name or new_file_name> - Edit file with Neo
-------------------------------------------------------------------------------
+
+
+
+[Parameters]
+{q     - Quit from shell after finishing program
+{s     - Shut Down after finishing program
+{d     - Show executing string
