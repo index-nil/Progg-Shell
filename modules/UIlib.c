@@ -4,7 +4,7 @@
 #include <math.h>
 
 
-/*---------------------------UIlib MIT license------------------------------------*/
+/*---------------------------Progg Shell "UIlib" Module MIT License---------------------------*/
 
 
 int create_pb(char* Text ,int ShowPercent, int value,int chars, char* FullChar, char* VoidChar, char* Borders, int overwrite, int r,int g, int b){
@@ -107,7 +107,7 @@ int CreateGraph(int Height, int value,int Colums, int overwrite, char *bordes,ch
         printf("\n\033[%dm%s\n\033[0m",BordesColor, BordesStart);
     }
     else {
-        printf("\nThis function is currently unavailable  :( \n");
+        printf("\nThis function is currently unavailable  :( \n"); //Place holder
     }
     return 0;   
 }

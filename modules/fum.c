@@ -18,11 +18,12 @@
 #endif
 #include "UIlib.h"
 #include "fum.h"
-//Progg Shell 2026.01.12 File module GPLv3
+//Progg Shell 2026.01.12 File module MIT 
 //DONT FORGET ADD FREE()!!!
 
+
 char* read_file_to_buffer(const char* filename, long* out_length) {
-    FILE *file = fopen(filename, "rb"); // "rb" — чтение в бинарном режиме (надежнее)
+    FILE *file = fopen(filename, "rb"); 
     if (file == NULL) return NULL;
 
     fseek(file, 0, SEEK_END);
@@ -33,23 +34,23 @@ char* read_file_to_buffer(const char* filename, long* out_length) {
     if (buffer) {
         fread(buffer, 1, length, file);
         buffer[length] = '\0';
-        *out_length = length; // ВАЖНО: без этой строки filesize в main.c всегда будет 0!
+        *out_length = length; 
     }
 
     fclose(file);
     return buffer;
 }
 
-int count_symbols(const char* buffer, long length){
+long count_symbols(const char* buffer, long length){
     if (length <= 0 || !buffer) return 0;
     int words = (buffer[0] != ' ' && buffer[0] != '\n' && buffer[0] != '\r') ? 1 : 0;
     
     
-    for (long i = 0; i < length - 1; i++)
+    for (size_t i = 0; i <= length - 1; i++)
     {
         
          
-        if (buffer[i] != '\r'|| buffer[i] != '\t') {
+        if (buffer[i] != '\r'&& buffer[i] != '\t' && buffer[i] != '\0') {
             words++;
         }
     }
@@ -58,15 +59,15 @@ int count_symbols(const char* buffer, long length){
 }
 
 
-int count_words(const char* buffer, long length) {
+long count_words(const char* buffer, long length) {
     if (length <= 0 || !buffer) return 0;
     
     int words = 0;
     signed char inWord = 1;
 
     for (long i = 0; i < length; i++) {
-        // Проверяем: это "печатный" символ или разделитель?
-        if (buffer[i] > 32) { // Все символы с кодом > 32 — это буквы, цифры и знаки
+        
+        if (buffer[i] > 32) { 
             if (!inWord) {
                 inWord = 1;
                 words++;
@@ -94,17 +95,17 @@ int count_directories(const char *path) {
         WIN32_FIND_DATAA findData;
         char searchPath[MAX_PATH];
 
-        // Создаем маску поиска: "folder/*"
+        
         sprintf(searchPath, "%s/*", path);
 
         HANDLE hFind = FindFirstFileA(searchPath, &findData);
 
         if (hFind == INVALID_HANDLE_VALUE) {
-            return 0; // Папка пуста или не существует
+            return 0; 
         }
 
         do {
-            // Проверяем, что это директория
+            
             if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
                 
                 if (strcmp(findData.cFileName, ".") != 0 && strcmp(findData.cFileName, "..") != 0) {
@@ -119,14 +120,12 @@ int count_directories(const char *path) {
         DIR *dp = opendir(path);
 
         if (dp == NULL) {
-            return 0; // Не удалось открыть директорию
+            return 0;
         }
 
         while ((entry = readdir(dp))) {
-            // Проверяем, что это директория
-            // DT_DIR поддерживается большинством файловых систем Linux
             if (entry->d_type == DT_DIR) {
-                // Игнорируем "." и ".."
+                
                 if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
                     count++;
                 }
@@ -145,11 +144,11 @@ int count_directories(const char *path) {
 DirList get_directories(const char* path) {
     DirList result = {NULL, 0};
     
-    // 1. Сначала считаем количество (используем твою логику)
+    
     result.count = count_directories(path);
     if (result.count == 0) return result;
 
-    // 2. Выделяем память под массив указателей
+    
     result.names = (char**)malloc(result.count * sizeof(char*));
 
     int index = 0;
@@ -164,7 +163,7 @@ DirList get_directories(const char* path) {
             do {
                 if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
                     if (strcmp(findData.cFileName, ".") != 0 && strcmp(findData.cFileName, "..") != 0) {
-                        // Копируем имя папки в массив
+                        
                         result.names[index] = _strdup(findData.cFileName); 
                         index++;
                     }
@@ -331,7 +330,7 @@ char* CombinePath(const char *folder, const char *file) {
 
 
 
-// Определяем, какую библиотеку подключать
+
 #ifdef _WIN32
     #include <windows.h>
 #else
@@ -342,14 +341,14 @@ char* CombinePath(const char *folder, const char *file) {
 
 int is_directory(const char *path) {
 #ifdef _WIN32
-    DWORD dwAttrib = GetFileAttributesA(path); // 'A' для работы с char* (ANSI)
+    DWORD dwAttrib = GetFileAttributesA(path); 
 
     return (dwAttrib != INVALID_FILE_ATTRIBUTES && 
            (dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
 #else
     struct stat statbuf;
     if (stat(path, &statbuf) != 0) {
-        return 0; // Ошибка (файл не найден или нет доступа)
+        return 0; 
     }
     return S_ISDIR(statbuf.st_mode);
 #endif

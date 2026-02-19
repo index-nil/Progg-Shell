@@ -16,9 +16,9 @@ typedef struct {
 
 char* read_file_to_buffer(const char* filename, long* out_length);
 
-int count_words(const char* buffer, long length);
+long count_words(const char* buffer, long length);
 
-int count_symbols(const char* buffer, long length);
+long count_symbols(const char* buffer, long length);
 
 
 int directory_exists(signed char *path);
