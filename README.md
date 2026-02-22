@@ -1,6 +1,8 @@
 
-Progg Shell - Shell on C with **not Standard** commands 
+Progg Shell - PoroggShell is a lightweight command-line shell written in C.
+It provides basic file management, system interaction, and scripting-style commands in a simple.
 
+---
 
 [Commands]
 ver    - Print Shell version
@@ -36,3 +38,11 @@ neo <file_name or new_file_name> - Edit file with Neo
 {q     - Quit from shell after finishing program
 {s     - Shut Down after finishing program
 {d     - Show executing string
+
+---
+**Compilation**
+
+<pre>gcc main.c modules/*.c -o ProggShell.exe -s -O2 -lncursesw</pre>  
+
+---
+
