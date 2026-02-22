@@ -42,6 +42,8 @@ neo <file_name or new_file_name> - Edit file with Neo<br>
 ---
 **Compilation**
 
+>If you not using MSYS2 change #include <ncurses/ncurses.h> to #include <ncurses>
+
 <pre>gcc main.c modules/*.c -o ProggShell.exe -s -O2 -lncursesw</pre>  
 
 ---
