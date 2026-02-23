@@ -2,6 +2,7 @@
 **Progg Shell** - ProggShell is a lightweight command-line shell written in C.<br>
 It provides basic file management and system interaction.<br>
 
+>Note: In future Shell will be updated. Dont think its end! :3
 ---
 
 [Commands]<br>
@@ -47,4 +48,5 @@ neo <file_name or new_file_name> - Edit file with Neo<br>
 <pre>gcc main.c modules/*.c -o ProggShell.exe -s -O2 -lncursesw</pre>  
 
 ---
+
 
