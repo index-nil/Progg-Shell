@@ -15,13 +15,20 @@ crt <file name> - Creating or cleaning file
 cmd    - Open System Command Prompt
 clv    - Clear view
 cls    - Clear Screen
+clh    - Clear Terminal History
 cd  <folder name or path to folder> - Enter in the folder
+cop, cln <Path_To_File> <Path_To_Duplicate> - Create Duplicate of file
 create <object_name> - create object (For extensions developers)
 cpu-load - Show CPU load
 mem-load - Show RAM load
+mdr <folder name> - Create folder in current path
+mov <new_Path> - Move file
 exec <Path + Full File name> - Execute file
+export <name> - export Shell History file
 set-lng <language file name> - Sets language file to file in program folder
-mdr <folder name> - create folder in current path
+ren <new_file_name> - Rename file
+neo <file_name or new_file_name> - Edit file with Neo
+if <arg1> <operator> <arg2> - Make logic if
 
 
 [Parameters]
@@ -47,6 +54,9 @@ $rdtime:Exitphrase
 $
 
 
+$error:CantRunExt
+Error: Cant run extension
+$
 
 
 $rdtime:readTimeGet

@@ -2,8 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-
-
+#include <ctype.h>
 /*---------------------------Progg Shell "UIlib" Module MIT License---------------------------*/
 
 
@@ -110,4 +109,30 @@ int CreateGraph(int Height, int value,int Colums, int overwrite, char *bordes,ch
         printf("\nThis function is currently unavailable  :( \n"); //Place holder
     }
     return 0;   
+}
+
+int yesorno(char* Text){
+    if (!Text){
+        printf("Continue? [Y/N]: ");
+    }
+    else{
+        printf("%s [Y/N]: ", Text);
+    }
+    char Answer = 'q';
+    
+    
+    while (Answer != 'y' && Answer != 'n')
+    {
+        scanf(" %c",&Answer);
+        Answer = tolower(Answer);
+    }
+    printf("\n");
+    if (Answer == 'y'){
+        return 1;
+    }
+    return 0;
+    
+
+
+
 }

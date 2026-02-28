@@ -41,39 +41,32 @@ char* read_file_to_buffer(const char* filename, long* out_length) {
     return buffer;
 }
 
-long count_symbols(const char* buffer, long length){
+long count_symbols(const char* buffer, long length) {
     if (length <= 0 || !buffer) return 0;
-    int words = (buffer[0] != ' ' && buffer[0] != '\n' && buffer[0] != '\r') ? 1 : 0;
-    
-    
-    for (size_t i = 0; i <= length - 1; i++)
-    {
-        
-         
-        if (buffer[i] != '\r'&& buffer[i] != '\t' && buffer[i] != '\0') {
-            words++;
+
+    long count = 0;
+    for (long i = 0; i < length; i++) {
+        if (buffer[i] != '\r' && buffer[i] != '\t' && buffer[i] != '\n' && buffer[i] != '\0') {
+            count++;
         }
     }
-    
-    return(words);
+    return count;
 }
-
 
 long count_words(const char* buffer, long length) {
     if (length <= 0 || !buffer) return 0;
-    
-    int words = 0;
-    signed char inWord = 1;
+
+    long words = 0;
+    int in_word = 0;
 
     for (long i = 0; i < length; i++) {
-        
-        if (buffer[i] > 32) { 
-            if (!inWord) {
-                inWord = 1;
+        if (buffer[i] != ' ' && buffer[i] != '\n' && buffer[i] != '\r' && buffer[i] != '\t') {
+            if (!in_word) {
                 words++;
+                in_word = 1;
             }
         } else {
-            inWord = 0;
+            in_word = 0;
         }
     }
     return words;

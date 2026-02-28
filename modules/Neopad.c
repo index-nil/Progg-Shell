@@ -6,7 +6,6 @@
 #ifndef _XOPEN_SOURCE_EXTENDED
 #define _XOPEN_SOURCE_EXTENDED
 #endif
-#define NCURSES_STATIC
 
 #ifdef _WIN32
     #include <ncursesw/ncurses.h> // Используем ncursesw
@@ -95,6 +94,7 @@ void editorFree() {
         free(E.filename);
         E.filename = NULL;
     }
+    
 }
 void editorMoveCursor(int key);
 void editorRefreshScreen();
@@ -215,7 +215,7 @@ void editorOpen(char *filename) {
     FILE *fp = fopen(filename, "r");
     if (!fp) {
         
-        FILE *fp = fopen(filename, "w");// if file does exist create it
+        fp = fopen(filename, "w");// if file does exist create it
         
     }
     
@@ -291,7 +291,7 @@ void editorClose() {
     }
     return;
 }
-void editorProcessKeypress() {
+int editorProcessKeypress() {
     wint_t c;
     int res = get_wch(&c); // Получаем широкий символ
 
@@ -306,7 +306,7 @@ void editorProcessKeypress() {
     } else {
         // Обработка обычных и многобайтовых символов
         switch (c) {
-            case 3: editorClose(); break; // Ctrl+C
+            case 3: editorClose(); return 0; break; // Ctrl+C
             case 19: editorSave(); break;  // Ctrl+S
             case '\n': case '\r': 
                 editorInsertRow(E.cy + 1, "", 0); 
@@ -340,7 +340,7 @@ void run_neopad(char *filename) {
     int running = 1;
     while (running) {
         editorRefreshScreen();
-        editorProcessKeypress();
+        if (editorProcessKeypress() == 0) break;
         // Для выхода используйте Ctrl+C (обработка есть в editorProcessKeypress)
     }
 
