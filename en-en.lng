@@ -1,43 +1,50 @@
+
 $help
 [Commands]
 ver    - Print Shell version
 hello  - Print "Hello world!"
 quit , q , exit - Exit from Shell
-fl,dir,ls - Show objects in current folder
-del <Path + Full File name> - Delete file
 delay <ms> - Wait some time 
-prt <word> - Print string
-prtread <Path + Full File name> - Print file content
-noflag - Disable flags
-exflag - Enable flags
-run <command> - Send command to Windows
-crt <file name> - Creating or cleaning file
-cmd    - Open System Command Prompt
+back <count> - leave X directories
 clv    - Clear view
-cls    - Clear Screen
-cd  <folder name or path to folder> - Enter in the folder
-create <object_name> - create object (For extensions developers)
-cpu-load - Show CPU load
-mem-load - Show RAM load
-exec <Path + Full File name> - Execute file
+clh    - Clear Terminal History
+cd  <path_to_folder> - Enter in the folder
+histexport <name> - export Shell History file
 set-lng <language file name> - Sets language file to file in program folder
-mdr <folder name> - create folder in current path
+if <arg1> <operator> <arg2> - Make logic if
+future <Count_Of_commands_To_execute> <Command> - execute command after X commands
 
+[Variable Manipulations]
 
-[Parameters]
-{q     - Quit from shell after finishing program
-{s     - Shut Down after finishing program
-{d     - Show executing string
+#<Variable_Name> - Replace string to variable Value
+
+var <Variable_Name> = <Value> - Create variable
+rvar <Variable_Name> - Delete variable
+varlist - Show all variables
+
 $
 
 $read:fileNameError
 Error: Specify filename!
 $
 
-$read:info
-|PSh| Detected words in text: %d | Symbols in text %d | Read time for you: ~Null |\n
-$
 
 $general:cantOpenFile
 Can't open file!
+$
+
+
+$error:CantRunExt
+Error: Cant run extension
+$
+
+
+
+$file:c
+Count
+$
+
+
+$general:memory:allocationerr
+Memory allocation error!\n
 $
