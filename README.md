@@ -1,6 +1,5 @@
 
-**Progg Shell** - ProggShell is a lightweight command-line shell written in C.<br>
-It provides basic file management and system interaction.<br>
+**Progg Shell** - ProggShell is a lightweight, cross platform (Windows, Linux) command-line shell <br>
 
 >Note: In future Shell will be updated. Dont think its end! :3
 ---
